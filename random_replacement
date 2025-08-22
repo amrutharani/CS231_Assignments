@@ -1,0 +1,22 @@
+import random
+
+class RandomCache:
+    def __init__(self, capacity):
+        self.capacity = capacity
+        self.cache = {}
+
+    def get(self, key):
+        return self.cache.get(key, -1)
+
+    def put(self, key, value):
+        if key not in self.cache and len(self.cache) >= self.capacity:
+            # Remove a random key
+            k = random.choice(list(self.cache.keys()))
+            del self.cache[k]
+        self.cache[key] = value
+
+# Example
+rr = RandomCache(2)
+rr.put(1, 1)
+rr.put(2, 2)
+rr.put(3, 3)  # removes either 1 or 2 randomly
