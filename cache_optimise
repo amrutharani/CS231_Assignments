@@ -1,0 +1,117 @@
+import random
+from collections import OrderedDict, defaultdict, deque
+
+class CacheSimulator:
+    def __init__(self, capacity, policy='LRU'):
+        self.capacity = capacity
+        self.policy = policy.upper()
+        self.cache = {}  # key -> value
+        self.hits = 0
+        self.misses = 0
+
+        # Policy-specific structures
+        if self.policy == 'LRU':
+            self.order = OrderedDict()
+        elif self.policy == 'LFU':
+            self.key_freq = {}
+            self.freq_keys = defaultdict(OrderedDict)
+            self.min_freq = 0
+        elif self.policy == 'FIFO':
+            self.queue = deque()
+        # Random does not need extra structures
+
+    def access(self, key, value=None):
+        if self.policy == 'LRU':
+            return self._access_lru(key, value)
+        elif self.policy == 'LFU':
+            return self._access_lfu(key, value)
+        elif self.policy == 'FIFO':
+            return self._access_fifo(key, value)
+        elif self.policy == 'RANDOM':
+            return self._access_random(key, value)
+        else:
+            raise ValueError("Unknown policy")
+
+    # ------------------- LRU -------------------
+    def _access_lru(self, key, value):
+        if key in self.cache:
+            self.order.move_to_end(key)
+            self.hits += 1
+        else:
+            self.misses += 1
+            if len(self.cache) >= self.capacity:
+                oldest = next(iter(self.order))
+                self.order.pop(oldest)
+                del self.cache[oldest]
+            self.cache[key] = value
+            self.order[key] = None
+
+    # ------------------- LFU -------------------
+    def _access_lfu(self, key, value):
+        if key in self.cache:
+            self.hits += 1
+            self._update_lfu(key)
+        else:
+            self.misses += 1
+            if len(self.cache) >= self.capacity:
+                # Evict least freq key
+                lfu_key, _ = self.freq_keys[self.min_freq].popitem(last=False)
+                del self.cache[lfu_key]
+                del self.key_freq[lfu_key]
+            self.cache[key] = value
+            self.key_freq[key] = 1
+            self.freq_keys[1][key] = None
+            self.min_freq = 1
+
+    def _update_lfu(self, key):
+        freq = self.key_freq[key]
+        self.freq_keys[freq].pop(key)
+        if not self.freq_keys[freq]:
+            del self.freq_keys[freq]
+            if freq == self.min_freq:
+                self.min_freq += 1
+        self.key_freq[key] += 1
+        self.freq_keys[freq + 1][key] = None
+
+    # ------------------- FIFO -------------------
+    def _access_fifo(self, key, value):
+        if key in self.cache:
+            self.hits += 1
+        else:
+            self.misses += 1
+            if len(self.cache) >= self.capacity:
+                oldest = self.queue.popleft()
+                del self.cache[oldest]
+            self.cache[key] = value
+            self.queue.append(key)
+
+    # ------------------- RANDOM -------------------
+    def _access_random(self, key, value):
+        if key in self.cache:
+            self.hits += 1
+        else:
+            self.misses += 1
+            if len(self.cache) >= self.capacity:
+                random_key = random.choice(list(self.cache.keys()))
+                del self.cache[random_key]
+            self.cache[key] = value
+
+    def stats(self):
+        total = self.hits + self.misses
+        hit_rate = self.hits / total * 100 if total else 0
+        miss_rate = self.misses / total * 100 if total else 0
+        return {
+            'hits': self.hits,
+            'misses': self.misses,
+            'hit_rate': hit_rate,
+            'miss_rate': miss_rate
+        }
+
+# ------------------- Example Usage -------------------
+if __name__ == "__main__":
+    accesses = [1, 2, 3, 1, 4, 5, 2, 1, 3, 4]
+    cache = CacheSimulator(capacity=3, policy='LFU')
+    for key in accesses:
+        cache.access(key, value=f"Data{key}")
+
+    print("Cache Stats:", cache.stats())
